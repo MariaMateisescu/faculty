@@ -1,0 +1,41 @@
+# Lab 4 Team 7
+
+Sa se scrie un program C care sa fie apelat sub forma:
+
+parallel COMMAND [COMMAND]
+
+-------------------------------------[CERINȚE]----------------------------------
+
+1. Programul va primi mai multe comenzi și eventual mai multe argumente pentru
+   fiecare comanda.
+
+2. Pentru fiecare comanda primită, programul o va executa cu argumentele date.
+
+3. Dacă mai multe comenzi sunt date, programul va executa comenzile în paralel
+
+4. Programul va afișa la sfârșit un mesaj cu următoarele detalii:
+   1. Dacă programul sa terminat normal și codul de ieșire a programului.
+   2. Dacă programul sa terminat din cauza un semnal, cu numărul semnalului
+      care a terminat programul.
+
+-------------------------------------[EXTRA]----------------------------------
+
+1. Ce se întâmpla cu output-ul programului? Explicați în codul sursă cu
+   comentarii.
+
+-----------------------------------[INDICAȚII]--------------------------------
+
+1. Citiți paginile de manual pentru opendir(), readdir(), closedir(),
+   fork() și execve().
+
+2. Țineți cont ca procesul părinte trebuie sa verifice ca procesele create au
+   fost executat corect.
+
+3. Parcurgea de directoare ar trebui sa ignore . și .. în cele mai multe
+   cazuri.
+
+4. Rezolvați fiecare cerința din "CERINȚE" prima, iar după rezolvați cerințele
+   din EXTRA.
+
+5. Țineți cont că atunci când un fișier este scris de mai multe procese,
+   O_APPEND poate să vă ajute.
