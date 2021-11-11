@@ -1,0 +1,559 @@
+/*Sa se implementeze un program C, folosind apeluri sistem si functii de biblioteca, care se apeleaza sub forma: ./executabil link file
+Se va verifica faptul ca exista exact 2 argumente, dintre care primul este o legatura simbolica, iar al doilea este un fisier obisnuit. In cazul in care nu se respecta numarul sau tipul argumentelor, se va afisa un mesaj de eroare corespunzator.
+Se creeaza un proces fiu care prelucreaza argumentele primite in linia de comanda. 
+In cazul legaturii simbolice, link, daca aceasta indica spre un fisier obisnuit, se va retine ultima cifra a dimensiunii fisierului target, altfel, se va retine ultima cifra a dimensiunii legaturii.
+In cazul fisierului obisnuit, file, se va inlocui fiecare aparitie a unei majuscule (litere mari) cu cifra salvata anterior. 
+Parintele afiseaza la interval de 2 secunde “Inca traiesc!”.*/
+/*Dupa prelucrarea fisierului file, fiul  afiseaza pe ecran rezultatul sub forma “S-au efectuat <n> inlocuiri.” si apoi trimite numarul de inlocuiri procesului parinte prin codul de retur. 
+La terminarea procesului fiu, parintele va afisa pe ecran un mesaj de forma "Procesul fiu cu PID-ul <PID> s-a terminat cu codul <cod>" si apoi se termina si el. 
+Procesul fiu si procesul parinte vor rula obligatoriu in paralel. 
+Se vor trata cazurile de eroare pentru apelurile sistem folosite. 
+Functiile de biblioteca permise sunt DOAR pentru formatări (printf), verificări de tip de  caracter si operatii asupra sirurilor de caractere. 
+Nota: Pentru a incetini ritmul in care fiul contorizeaza aparitiile se poate folosi apelul  usleep(100000) in timpul citirii fisierului.
+adunam la caracterul '0' +cifra*/
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+
+#define BUFSIZE 4098
+pid_t child_pid;
+void proces_fiu(char link[], char fisier[], struct stat buff)
+{   
+    usleep(100000);
+    struct stat buf;
+    char buffer[BUFSIZE];
+    stat(link,&buf);
+    int cifra,fd,n,i;
+    if(S_ISREG(buf.st_mode))
+    {
+        cifra=(buf.st_size)%10;
+    }
+    else
+    {
+        cifra=(buff.st_size)%10;
+    }
+    if((fd=open(fisier,O_RDWR))<0)
+    {
+        perror("EROARE LA DESCHIDEREA FISIERULUI");
+        exit(-1);
+    }
+    char caracter='0'+cifra;
+    int k=0;
+    while((n=read(fd,buffer,BUFSIZE))>0)
+    {   
+        for(i=0;i<strlen(buffer);i++)
+        {
+            if(buffer[i]>='A' &&buffer[i]<'Z')
+            {
+                buffer[i]=caracter;
+                k++;
+            }
+        }
+        lseek(fd, -n, SEEK_CUR);
+        if(write(fd,buffer,n)<0)
+        {
+            perror("eroare la scriere in fisier");
+            exit(-1);
+        }
+    }
+    printf("S-au efectuat %d inlocuiri\n", k);
+    exit(k);
+}
+void proces_parinte_end(int sig)
+{  int status;
+    wait(&status);
+   printf("Procesul fiu cu PID-ul %d s-a terminat cu codul %d\n",child_pid,WEXITSTATUS(status));
+   exit(0);
+}
+void proces_parinte_write(int sig)
+{
+    printf("Inca traiesc!");
+}
+void proces_parinte()
+{
+    struct sigaction process_sigchld_action;
+
+    memset(&process_sigchld_action,0x00, sizeof(struct sigaction));
+
+    process_sigchld_action.sa_handler=proces_parinte_end;
+    if(sigaction(SIGCHLD,&process_sigchld_action,NULL)<0)
+    {
+        perror("Eroare la SIGCHLD");
+        exit(-1);
+    }
+    struct sigaction process_sigalrm_action;
+
+    memset(&process_sigalrm_action,0x00, sizeof(struct sigaction));
+
+    process_sigalrm_action.sa_handler=proces_parinte_write;
+    if(sigaction(SIGALRM,&process_sigalrm_action,NULL)<0)
+    {
+        perror("Eroare la SIGALRM");
+        exit(-1);
+    }
+    
+    
+}
+int main(int argc, char *argv[])
+{
+    if(argc!=3)
+    {
+        perror("numar incorect de argumente");
+        exit(-1);
+    }
+    struct stat buf;
+    lstat(argv[1],&buf);
+    if(!(S_ISLNK(buf.st_mode)))
+    {
+        perror("Primul arg nu e leg simbolica");
+        exit(-1);
+    }
+    struct stat buf2;
+    stat(argv[2],&buf2);
+    if(!(S_ISREG(buf2.st_mode)))
+    {
+        perror("Al doilea arg nu e fisier obisnuit");
+        exit(-1);
+    }
+    if((child_pid=fork())<0)
+    {
+        perror("eroare la crearea procesului fiu");
+        exit(-1);
+    }
+    if(child_pid==0)
+    {
+        proces_fiu(argv[1],argv[2],buf);
+    }
+    proces_parinte();
+}
+
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+// basics
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+
+char buffer[80];
+
+void readFile(char* file){
+    struct sigaction child_proc;
+    
+    memset(&child_proc, 0x00, sizeof(struct sigaction));
+    
+    int fd;
+    struct stat fileS;
+    fd = open(file, O_RDONLY);
+    if(fd == -1){
+        perror("Couldn't open this file\n");
+        exit(EXIT_FAILURE);
+    }
+    else{
+        printf("%s file opened with read access only\n", file);
+        printf("fd = %d\n", fd);
+        
+        if(lstat(file, &fileS) == -1){
+             perror("Eroare la apelarea lui lstat\n");
+             exit(EXIT_FAILURE);
+        }
+        if(S_ISREG(fileS.st_mode)){
+        
+            while (n=(read(fd, buffer, sizeof(buffer))) > 0) {
+            printf("'%s' was read from the file\n", buffer);
+            
+            if(sigaction(SIGUSR1, &child_proc, NULL) < 0){
+                    perror("Procesul copil a setat SIGUSR1");
+                    exit(EXIT_FAILURE);
+                }
+            exit(EXIT_SUCCESS);
+        }
+        if(close(fd) == -1){
+           perror("Eroare la inchiderea fisierului\n");
+           exit(EXIT_FAILURE);
+        }else{
+           exit(EXIT_SUCCESS);   
+        }
+     }
+}
+
+int main(int argc, char* argv[]){
+
+    int status;
+    pid_t pid;
+
+    if(argc != 2){
+        fprintf(stderr,"Usage %s incorrectly\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    if((pid = fork()) < 0){
+        perror("Couldn't create the child process\n");
+        exit(EXIT_FAILURE);
+    }
+    if(pid == 0){
+        readFile(argv[1]);
+        exit(EXIT_SUCCESS);
+    }
+
+    pid_t pidChild = wait(&status);
+    if(pidChild == -1){
+        perror("The child process ended abnormally\n");
+        exit(EXIT_FAILURE);
+    }
+    if(WIFEXITED(status)){
+        printf("The child process %d ended with code: %d\n", pidChild, WEXITSTATUS(status));
+    }
+
+    return 0;
+}
+
+
+---------------------------------------------------------------------------------------------------------------------------------
+
+# Test 1 4.1
+
+## Enunț
+
+Să se creeze un program care poate fi apelat cu următoarele argumente:
+
+makesafe [-v] FILE [FILE]
+
+Programul va primi cel puțin un fișier.
+
+Se va crea un proces fiu pentru citirea din fiecare fișier. Procesele create
+vor rula obligatoriu în paralel.
+
+Procesele create vor crea un nou fișier cu aceeași denumire ca și fișier-ul
+procesat, dar cu extensia ".safe" (adică "file.txt" -> "file.txt.safe"), dacă
+fișier-ul nu exista deja. Fișier-ul creat va avea permisiunile de citire și
+scriere setat pentru utilizatorul care la creat. Dacă fișier-ul exista, se va
+afișa un mesaj de eroare și procesul fiu se va termina.
+
+Fiecare proces creat va citi din fișier și va scrie în fișier-ul nou. Fiecare
+litera mică scrisă va fi dată de următoarea formula caracter + (size % 20), unde
+size este mărimea fișier-ului.
+
+Fiecare proces va afișa un mesaj de tipul "converted: <bytes>", unde bytes
+este numărul de octeți procesați de proces, la sfârșit.
+
+Se va verifica pentru fiecare fișier dacă este fișier regular. Alte tipuri de
+fișier nu se accepta și trebuie afișat un mesaj de eroare în părinte. Dacă -v
+este dat, se va afișa un mesaj "Warning: got a symbolic link" pentru fiecare
+legătura simbolica data.
+
+Părintele va verifica dacă procesele create au terminat normal sau dacă au
+terminat din cauza unui semnal. În ambele cazuri va afișa un mesaj care să
+conțină PID-ul procesului care sa terminat. Dacă procesul sa terminat normal,
+mesajul va conține valoare de ieșire a procesului. Dacă procesul sa terminat
+din cauza unui semnal, valoare numerică a semnalului.
+
+Părinte va afișa din secunda în secunda numărul proceselor active.
+
+Părintele nu va termina execuția sa pană când toate procesele create au
+terminat.
+
+Se vor trata cazurile de eroare pentru apelurile sistem folosite.
+
+Funcțiile de biblioteca permise sunt DOAR pentru formatări (printf()) și operații
+asupra șirurilor de caractere (cele din string.h).
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <ctype.h>
+
+int vflag;
+int ind = 2; //ai cel putin 2 arg
+
+int main(int argc, char *argv[]){
+
+    if(argc < 3){
+        fprintf(stderr, "incorrect format of args\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if(strcmp(argv[1], "-v") == 0){ //daca gasim 'v'
+        vflag = 1;
+        ind++; //contor argumente = 3
+    }    
+
+    for(int i = ind; i < argc; i++){ // pleci cu i de la 2 sau 3, pana la 3 inclusiv
+
+        pid_t pid;
+
+        if( (pid = fork()) == -1){ //daca procesul nu s-a creat corect, eroare
+            perror("failed to fork");
+            exit(EXIT_FAILURE);
+        }   
+
+        if(pid == 0){ //procesul fiu
+            
+            int fd;
+            int fd1;
+
+            if( (fd = open(argv[i], O_EXCL)) == -1){ // creare exclusiva fisier
+                perror("failed to open, the file already exists");
+                exit(EXIT_FAILURE);
+            }
+        
+            char new_name[101]; //variabila new_name va stoca noul nume, initial gol
+            
+            strcat(new_name, argv[i]); //in new_name punem numele fisierului curent
+            strcat(new_name, ".safe"); //concatenam numele cu extensia .safe
+
+                                                   // drept citire si scriere
+            if( (fd1 = open(new_name, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR)) == -1){
+                perror("failed to create new file");
+                exit(EXIT_FAILURE);
+            }
+
+            //find the size of the file
+
+            struct stat sfile;
+
+            if( lstat(argv[i], &sfile) == -1){ //aflarea atributelor fisierului argv[i]
+                perror("failed to stat");
+                exit(EXIT_FAILURE);
+            }
+
+            int blocksize = sfile.st_blksize; //in blocksize stocam nr de octeti procesati
+
+            ssize_t n; 
+            char c;
+            int bytes = 0;
+            
+            while( (n = read(fd, &c, sizeof(char))) > 0){ //returneaza nr de octeti cititi
+
+                    bytes++; //incrementam nr de bytes cititi
+                    if(islower(c)){ //daca caracterul citit e litera mica
+                        
+                        char c1 = c + (n % 20); //formula pt litera mica
+                        
+                        if(write(fd1, &c1, n) == -1){ //scrie in fd1 (.safe) 
+                            perror("failed to write");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+            }
+
+            printf("converted: %d\n", bytes);
+
+            close(fd);
+            close(fd1);
+            
+            exit(0);
+
+        }else{ //codul procesului parinte
+
+            struct stat sfilep;
+
+            if( lstat(argv[i], &sfilep) == -1){ //aflarea atributelor fisierului argv[i]
+                perror("failed to stat");
+                exit(EXIT_FAILURE);
+            }
+
+            if(!S_ISREG(sfilep.st_mode)){ //daca fisierul nu este regular
+                fprintf(stderr, "not a regular file\n");
+                exit(EXIT_FAILURE);
+            }
+
+            if(vflag == 1 && S_ISLNK(sfilep.st_mode)){ //daca '-v' este dat si e leg simbolica
+                printf("Warning: got a symbolic link\n");
+            }
+
+            int status;
+            if(wait(&status) == -1){  //asteptam terminarea fiului
+                perror("failed to wait");
+                exit(EXIT_FAILURE);
+            }
+
+            if(WIFEXITED(status)){ //verificam daca procesele s-au terminat normal
+                printf("Child with pid %d ended good with Status: %d\n", pid, WEXITSTATUS(status));
+            }else
+            if(WIFSIGNALED(status)){ //sau din cauza unui semnal
+                printf("Child with pid %d ended because of a signal with %d\n", pid, WTERMSIG(status));
+            }
+            
+        }
+
+    }
+
+}
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <signal.h>
+
+pid_t pid;
+
+void evaluate_file(char *file) { //primeste ca parametru fisierul
+    if (file == NULL) {
+        fprintf(stderr, "file null");
+        exit(EXIT_FAILURE);
+    }
+
+    int fd1;
+
+    if ( (fd1 = open (file, O_RDONLY)) == -1) { //deschidem fisierul pt citire
+        perror("failed to open");
+        exit(EXIT_FAILURE);
+    }
+
+    char c;
+    ssize_t nb1;
+    int cnt = 0;
+
+    while ( (nb1 = read (fd1, &c, sizeof(char))) > 0) {
+        cnt ++;
+        if (c == '*' && cnt == 10) {
+            printf("star was found\n");
+            
+            // daca am gasit steluta trimitem semnalul SIGUSR1
+            if (kill(pid, SIGUSR1) == -1) {
+                perror("failed to send signal");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    if (nb1 == -1) {
+        perror("failed to read file");
+        exit(EXIT_FAILURE);
+    }
+
+    close(fd1);
+}
+
+int flag_rec = 0;
+void child_receives(int sig) {
+    flag_rec++;
+    exit(0);
+}
+
+int main(int argc, char *argv[]) {
+
+    if (argc!=2) {
+        fprintf(stderr, "incorrect number of args\n");
+        exit(EXIT_FAILURE);
+    }
+
+    struct stat sfile;
+
+    if (stat(argv[1], &sfile) == -1) {
+        perror("failed to stat");
+        exit(EXIT_FAILURE);
+    }
+    // verificam daca fisierul este regular
+    if (!S_ISREG(sfile.st_mode)) {
+        fprintf(stderr, "is not a regular file\n");
+        exit(EXIT_FAILURE);
+    }
+    else{  // daca fisierul este regular
+
+    struct sigaction action;
+    action.sa_handler = SIG_IGN; //initial semnalul va fi ignorat
+
+    if (sigaction(SIGUSR1, &action, NULL) == -1) {
+        perror("failed to set SIGUSR1");
+        exit(EXIT_FAILURE);
+    }
+
+    pid = fork();
+
+    if (pid == -1) {
+        perror("failed to fork()");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) { // procesul fiu
+
+    struct sigaction action_child;
+    action_child.sa_handler = child_receives;
+
+    if (sigaction(SIGUSR1, &action_child, NULL) == -1) {
+        perror("failed to set SIGUSR1");
+        exit(EXIT_FAILURE);
+    }
+
+    if(flag_rec != 0) {
+        printf("child received the signal at least once\n");
+    } else {
+        exit(0);
+    }
+} else { //procesul parinte
+    int fd;
+
+    if ( (fd = open (argv[1], O_RDONLY)) == -1 ) { // deschidem fisierul pt citire
+        perror("failed to open");
+        exit(EXIT_FAILURE);
+    }
+
+    int indexbuf = 0;
+    char buf[4096]; //declaram buffer-ul
+
+    ssize_t nb;
+
+    while ( (nb = read(fd, &buf[indexbuf], sizeof(char))) > 0 ) {
+        if (buf[indexbuf] == '\n') {
+            buf[indexbuf] = '\0';
+            printf("buf : %s \n", buf);
+
+            evaluate_file(buf); // evaluam fisierul
+
+            buf[0] = '\0';
+            indexbuf = -1;
+        }
+        indexbuf++;
+    }
+
+    if (nb == -1) {
+        perror("failed to read file");
+        exit(EXIT_FAILURE);
+    }
+
+    close(fd); // inchidem fisierul
+
+    int status; // asteptam terminarea procesului
+
+    if (wait(&status) == -1) {
+        perror("failed to wait");
+        exit(EXIT_FAILURE);
+    }
+
+    if (WIFEXITED(status)) { // returneaza true daca copilul s-a terminat corect
+        printf("Procesul fiu cu PID-ul %d s-a terminat cu codul %d \n", pid, WEXITSTATUS(status));
+    } else {
+        printf("Child ended wrong");
+    }
+   }
+ }
+}
